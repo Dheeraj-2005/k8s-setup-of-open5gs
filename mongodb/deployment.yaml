@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongo
+  namespace: open5gs
+spec:
+  serviceName: "mongo"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongo
+  template:
+    metadata:
+      labels:
+        app: mongo
+    spec:
+      containers:
+        - name: mongo
+          image: mongo:6.0
+          command: ["mongod", "--bind_ip", "0.0.0.0"]
+          ports:
+            - containerPort: 27017
+              name: mongo
+              protocol: TCP
+            - containerPort: 27017
+              name: mongo-udp
+              protocol: UDP
+          env:
+            - name: MONGO_INITDB_ROOT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-secret
+                  key: MONGO_INITDB_ROOT_USERNAME
+            - name: MONGO_INITDB_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mongo-secret
+                  key: MONGO_INITDB_ROOT_PASSWORD
+          volumeMounts:
+            - name: mongo-storage
+              mountPath: /data/db
+            - name: tz-config
+              mountPath: /etc/timezone
+              readOnly: true
+            - name: tz-localtime
+              mountPath: /etc/localtime
+              readOnly: true
+      volumes:
+        - name: tz-config
+          hostPath:
+            path: /etc/timezone
+        - name: tz-localtime
+          hostPath:
+            path: /etc/localtime
+  volumeClaimTemplates:
+    - metadata:
+        name: mongo-storage
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi

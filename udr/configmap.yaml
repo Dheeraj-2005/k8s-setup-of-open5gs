@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: udr-config
+  namespace: open5gs
+data:
+  MCC: "001"
+  MNC: "01"
+  MAX_NUM_UE: "1024"
+
+  udr.yaml: |
+    db_uri: mongodb://mongo/open5gs
+    logger:
+      file:
+        path: /open5gs/install/var/log/open5gs/udr.log
+
+    sbi:
+      server:
+        no_tls: true
+      client:
+        no_tls: true
+
+    global:
+      max:
+        ue: MAX_NUM_UE
+
+    udr:
+      sbi:
+        server:
+          - address: 0.0.0.0
+            port: 7777
+        client:
+          nrf:
+            - uri: http://open5gs-nrf:7777
+          scp:
+            - uri: http://open5gs-scp:7777

@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open5gs-pcf
+  namespace: open5gs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: open5gs-pcf
+  template:
+    metadata:
+      labels:
+        app: open5gs-pcf
+      # annotations:
+      #   k8s.v1.cni.cncf.io/networks: open5gs-nrf-net
+    spec:
+      initContainers:
+        - name: wait-for-mongo
+          image: busybox
+          command: ['sh', '-c', 'until nc -z mongo 27017; do echo waiting for mongo; sleep 2; done;']
+        - name: wait-for-nrf
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-nrf 7777; do echo waiting for nrf; sleep 2; done;']
+        - name: wait-for-scp
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-scp 7777; do echo waiting for scp; sleep 2; done;']
+
+
+      containers:
+        - name: pcf
+          image: open5gs-decrypted:latest
+          imagePullPolicy: Never
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              cp /mnt/pcf/pcf.yaml /open5gs/install/etc/open5gs/pcf.yaml && \
+              sed -i "s|MAX_NUM_UE|${MAX_NUM_UE}|g" /open5gs/install/etc/open5gs/pcf.yaml && \
+              /open5gs/install/bin/open5gs-pcfd
+          env:
+            - name: MCC
+              valueFrom:
+                configMapKeyRef:
+                  name: pcf-config
+                  key: MCC
+            - name: MNC
+              valueFrom:
+                configMapKeyRef:
+                  name: pcf-config
+                  key: MNC
+            - name: MAX_NUM_UE
+              valueFrom:
+                configMapKeyRef:
+                  name: pcf-config
+                  key: MAX_NUM_UE
+          
+          volumeMounts:
+            - name: pcf-config-vol
+              mountPath: /mnt/pcf/pcf.yaml
+              subPath: pcf.yaml
+            - name: log-volume
+              mountPath: /open5gs/install/var/log/open5gs
+
+      volumes:
+        - name: pcf-config-vol
+          configMap:
+            name: pcf-config
+        - name: log-volume
+          emptyDir: {}

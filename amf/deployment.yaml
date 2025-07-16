@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open5gs-amf
+  namespace: open5gs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: open5gs-amf
+  template:
+    metadata:
+      labels:
+        app: open5gs-amf
+      # annotations:
+      #   k8s.v1.cni.cncf.io/networks: open5gs-nrf-net
+    spec:
+      initContainers:
+        - name: wait-for-mongo
+          image: busybox
+          command: ['sh', '-c', 'until nc -z mongo 27017; do echo waiting for mongo; sleep 2; done;']
+        - name: wait-for-nrf
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-nrf 7777; do echo waiting for nrf; sleep 2; done;']
+        - name: wait-for-scp
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-scp 7777; do echo waiting for scp; sleep 2; done;']
+        - name: wait-for-ausf
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-ausf 7777; do echo waiting for ausf; sleep 2; done;']
+        - name: wait-for-udm
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-udm 7777; do echo waiting for udm; sleep 2; done;']
+        - name: wait-for-udr
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-udr 7777; do echo waiting for udr; sleep 2; done;']
+        - name: wait-for-pcf
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-pcf 7777 && nc -z open5gs-pcf 9091; do echo waiting for pcf; sleep 2; done;']
+        - name: wait-for-bsf
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-bsf 7777 ; do echo waiting for bsf; sleep 2; done;']
+      containers:
+        - name: amf
+          image: open5gs-decrypted:latest
+          imagePullPolicy: Never
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              cp /mnt/amf/amf.yaml /open5gs/install/etc/open5gs/amf.yaml && \
+              sed -i "s|MAX_NUM_UE|${MAX_NUM_UE}|g" /open5gs/install/etc/open5gs/amf.yaml && \
+              /open5gs/install/bin/open5gs-amfd
+          env:
+            - name: MCC
+              valueFrom:
+                configMapKeyRef:
+                  name: amf-config
+                  key: MCC
+            - name: MNC
+              valueFrom:
+                configMapKeyRef:
+                  name: amf-config
+                  key: MNC
+            - name: MAX_NUM_UE
+              valueFrom:
+                configMapKeyRef:
+                  name: amf-config
+                  key: MAX_NUM_UE
+            - name: TAC
+              valueFrom:
+                configMapKeyRef:
+                  name: amf-config
+                  key: TAC
+          
+          volumeMounts:
+            - name: amf-config-vol
+              mountPath: /mnt/amf/amf.yaml
+              subPath: amf.yaml
+            - name: log-volume
+              mountPath: /open5gs/install/var/log/open5gs
+
+      volumes:
+        - name: amf-config-vol
+          configMap:
+            name: amf-config
+        - name: log-volume
+          emptyDir: {}

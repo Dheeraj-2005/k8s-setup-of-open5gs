@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ausf-config
+  namespace: open5gs
+data:
+
+  MCC: "001"
+  MNC: "01"
+  MAX_NUM_UE: "1024"
+
+  ausf.yaml: |
+    logger:
+      file:
+        path: /open5gs/install/var/log/open5gs/ausf.log
+
+    sbi:
+      server:
+        no_tls: true
+      client:
+        no_tls: true
+
+    global:
+      max:
+        ue: MAX_NUM_UE
+
+    ausf:
+      sbi:
+        server:
+          - address: 0.0.0.0
+            port: 7777
+        client:
+          nrf:
+            - uri : http://open5gs-nrf:7777
+          scp:
+            - uri : http://open5gs-scp:7777

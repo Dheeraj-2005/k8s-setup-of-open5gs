@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open5gs-udr
+  namespace: open5gs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: open5gs-udr
+  template:
+    metadata:
+      labels:
+        app: open5gs-udr
+      # annotations:
+      #   k8s.v1.cni.cncf.io/networks: open5gs-nrf-net
+    spec:
+      initContainers:
+        - name: wait-for-mongo
+          image: busybox
+          command: ['sh', '-c', 'until nc -z mongo 27017; do echo waiting for mongo; sleep 2; done;']
+        - name: wait-for-nrf
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-nrf 7777; do echo waiting for nrf; sleep 2; done;']
+        - name: wait-for-scp
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-scp 7777; do echo waiting for scp; sleep 2; done;']
+
+
+      containers:
+        - name: udr
+          image: open5gs-decrypted:latest
+          imagePullPolicy: Never
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              cp /mnt/udr/udr.yaml /open5gs/install/etc/open5gs/udr.yaml && \
+              sed -i "s|MAX_NUM_UE|${MAX_NUM_UE}|g" /open5gs/install/etc/open5gs/udr.yaml && \
+              /open5gs/install/bin/open5gs-udrd
+          env:
+            - name: MCC
+              valueFrom:
+                configMapKeyRef:
+                  name: udr-config
+                  key: MCC
+            - name: MNC
+              valueFrom:
+                configMapKeyRef:
+                  name: udr-config
+                  key: MNC
+            - name: MAX_NUM_UE
+              valueFrom:
+                configMapKeyRef:
+                  name: udr-config
+                  key: MAX_NUM_UE
+          
+          volumeMounts:
+            - name: udr-config-vol
+              mountPath: /mnt/udr/udr.yaml
+              subPath: udr.yaml
+            - name: log-volume
+              mountPath: /open5gs/install/var/log/open5gs
+
+      volumes:
+        - name: udr-config-vol
+          configMap:
+            name: udr-config
+        - name: log-volume
+          emptyDir: {}

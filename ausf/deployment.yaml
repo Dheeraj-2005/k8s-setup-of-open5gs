@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open5gs-ausf
+  namespace: open5gs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: open5gs-ausf
+  template:
+    metadata:
+
+      labels:
+        app: open5gs-ausf
+      # annotations:
+      #   k8s.v1.cni.cncf.io/networks: open5gs-nrf-net
+    spec:
+      initContainers:
+        - name: wait-for-nrf
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-nrf 7777; do echo waiting for nrf; sleep 2; done;']
+        - name: wait-for-scp
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-scp 7777; do echo waiting for scp; sleep 2; done;']
+
+
+      containers:
+        - name: ausf
+          image: open5gs-decrypted:latest
+          imagePullPolicy: Never
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              cp /mnt/ausf/ausf.yaml /open5gs/install/etc/open5gs/ausf.yaml && \
+              sed -i "s|MAX_NUM_UE|${MAX_NUM_UE}|g" /open5gs/install/etc/open5gs/ausf.yaml && \
+                  /open5gs/install/bin/open5gs-ausfd
+          
+          env:
+            - name: MCC
+              valueFrom:
+                configMapKeyRef:
+                  name: ausf-config
+                  key: MCC
+            - name: MNC
+              valueFrom:
+                configMapKeyRef:
+                  name: ausf-config
+                  key: MNC
+            - name: MAX_NUM_UE
+              valueFrom:
+                configMapKeyRef:
+                  name: ausf-config
+                  key: MAX_NUM_UE
+          volumeMounts:
+            - name: ausf-config-vol
+              mountPath: /mnt/ausf/ausf.yaml
+              subPath: ausf.yaml
+            - name: log-volume
+              mountPath: /open5gs/install/var/log/open5gs
+      volumes:
+        - name: ausf-config-vol
+          configMap:
+            name: ausf-config
+        - name: log-volume
+          emptyDir: {}
+      

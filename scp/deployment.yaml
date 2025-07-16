@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open5gs-scp
+  namespace: open5gs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: open5gs-scp
+  template:
+    metadata:
+
+      labels:
+        app: open5gs-scp
+      # annotations:
+      #   k8s.v1.cni.cncf.io/networks: open5gs-nrf-net
+    spec:
+      initContainers:
+        - name: wait-for-nrf
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-nrf 7777; do echo waiting for nrf; sleep 2; done;']
+
+      containers:
+        - name: scp
+          image: open5gs-decrypted:latest
+          imagePullPolicy: Never
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              cp /mnt/scp/scp.yaml /open5gs/install/etc/open5gs/scp.yaml && \
+              sed -i "s|MAX_NUM_UE|${MAX_NUM_UE}|g" /open5gs/install/etc/open5gs/scp.yaml && \
+                  /open5gs/install/bin/open5gs-scpd
+          
+          env:
+            - name: MCC
+              valueFrom:
+                configMapKeyRef:
+                  name: scp-config
+                  key: MCC
+            - name: MNC
+              valueFrom:
+                configMapKeyRef:
+                  name: scp-config
+                  key: MNC
+            - name: MAX_NUM_UE
+              valueFrom:
+                configMapKeyRef:
+                  name: scp-config
+                  key: MAX_NUM_UE
+          volumeMounts:
+            - name: scp-config-vol
+              mountPath: /mnt/scp/scp.yaml
+              subPath: scp.yaml
+            - name: log-volume
+              mountPath: /open5gs/install/var/log/open5gs
+      volumes:
+        - name: scp-config-vol
+          configMap:
+            name: scp-config
+        - name: log-volume
+          emptyDir: {}
+      
