@@ -1,0 +1,119 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: smf-config
+  namespace: open5gs
+data:
+  MCC: "001"
+  MNC: "01"
+  MAX_NUM_UE: "1024"
+  TAC: "1"
+  smf.yaml: |
+    logger:
+      file:
+        path: /open5gs/install/var/log/open5gs/smf.log
+    sbi:
+      server:
+        no_tls: true
+      client:
+        no_tls: true  
+    global:
+      max:
+        ue: MAX_NUM_UE  
+      parameter:
+        no_ipv4v6_local_addr_in_packet_filter: true
+    smf:
+      freeDiameter: /open5gs/install/etc/freeDiameter/smf.conf
+      sbi:
+        server:
+          - address: 0.0.0.0
+            port: 7777
+        client:
+          nrf:
+            - uri: http://open5gs-nrf:7777
+          scp:
+            - uri: http://open5gs-scp:7777
+      gtpc:
+        server:
+          - address: 0.0.0.0
+      gtpu:
+        server:
+          - address: 0.0.0.0
+      pfcp:
+        server:
+          - address: 0.0.0.0  
+        client:
+          upf:
+            - address : 0.0.0.0
+      session:
+        - subnet: UE_IPV4_INTERNET_APN_SUBNET
+          gateway: UE_IPV4_INTERNET_APN_GATEWAY_IP
+          dnn: internet
+        - subnet: 2001:230:cafe::/48
+          gateway: 2001:230:cafe::1
+          dnn: internet
+        - subnet: UE_IPV4_IMS_SUBNET
+          gateway: UE_IPV4_IMS_TUN_IP
+          dnn: ims
+        - subnet: 2001:230:babe::/48
+          gateway: 2001:230:babe::1
+          dnn: ims
+      dns:
+        - SMF_DNS1
+        - SMF_DNS2
+        - 2001:4860:4860::8888
+        - 2001:4860:4860::8844
+      p-cscf:
+        - PCSCF_IP
+      mtu: 1450
+      metrics:
+         server
+           - address: open5gs-smf
+             port: 9091         
+  smf_init.sh: |
+    #!/bin/bash
+    export LC_ALL=C.UTF-8
+    export LANG=C.UTF-8
+    export IP_ADDR=$(awk 'END{print $1}' /etc/hosts)
+    export IF_NAME=$(ip r | awk '/default/ { print $5 }')
+
+    [ ${#MNC} == 3 ] && EPC_DOMAIN="epc.mnc${MNC}.mcc${MCC}.3gppnetwork.org" || EPC_DOMAIN="epc.mnc0${MNC}.mcc${MCC}.3gppnetwork.org"
+
+    UE_IPV4_INTERNET_APN_GATEWAY_IP=$(python3 /mnt/smf/ip_utils.py --ip_range $UE_IPV4_INTERNET)
+    UE_IPV4_IMS_TUN_IP=$(python3 /mnt/smf/ip_utils.py --ip_range $UE_IPV4_IMS)
+
+    cp /mnt/smf/smf.yaml open5gs/install/etc/open5gs
+    cp /mnt/smf/smf.conf open5gs/install/etc/freeDiameter
+    cp /mnt/smf/make_certs.sh open5gs/install/etc/freeDiameter
+
+    # sed -i 's|SMF_IP|'$SMF_IP'|g' install/etc/open5gs/smf.yaml
+    # sed -i 's|SCP_IP|'$SCP_IP'|g' install/etc/open5gs/smf.yaml
+    # sed -i 's|NRF_IP|'$NRF_IP'|g' install/etc/open5gs/smf.yaml
+    # sed -i 's|UPF_IP|'$UPF_IP'|g' install/etc/open5gs/smf.yaml
+    sed -i 's|SMF_DNS1|'$SMF_DNS1'|g' open5gs/install/etc/open5gs/smf.yaml
+    sed -i 's|SMF_DNS2|'$SMF_DNS2'|g' open5gs/install/etc/open5gs/smf.yaml
+    sed -i 's|UE_IPV4_INTERNET_APN_GATEWAY_IP|'$UE_IPV4_INTERNET_APN_GATEWAY_IP'|g' open5gs/install/etc/open5gs/smf.yaml
+    sed -i 's|UE_IPV4_INTERNET_APN_SUBNET|'$UE_IPV4_INTERNET'|g' open5gs/install/etc/open5gs/smf.yaml
+    sed -i 's|UE_IPV4_IMS_TUN_IP|'$UE_IPV4_IMS_TUN_IP'|g' open5gs/install/etc/open5gs/smf.yaml
+    sed -i 's|UE_IPV4_IMS_SUBNET|'$UE_IPV4_IMS'|g' open5gs/install/etc/open5gs/smf.yaml
+    sed -i 's|MAX_NUM_UE|'$MAX_NUM_UE'|g' open5gs/install/etc/open5gs/smf.yaml
+    # sed -i 's|SMF_IP|'$SMF_IP'|g' open5gs/install/etc/freeDiameter/smf.conf
+    # sed -i 's|PCRF_IP|'$PCRF_IP'|g' open5gs/install/etc/freeDiameter/smf.conf
+    sed -i 's|EPC_DOMAIN|'$EPC_DOMAIN'|g' open5gs/install/etc/freeDiameter/smf.conf
+    # sed -i 's|PCRF_BIND_PORT|'$PCRF_BIND_PORT'|g' open5gs/install/etc/freeDiameter/smf.conf
+    sed -i 's|LD_LIBRARY_PATH|'$LD_LIBRARY_PATH'|g' open5gs/install/etc/freeDiameter/smf.conf
+    sed -i 's|EPC_DOMAIN|'$EPC_DOMAIN'|g' open5gs/install/etc/freeDiameter/make_certs.sh
+    # Generate TLS certificates
+    ./open5gs/install/etc/freeDiameter/make_certs.sh /open5gs/install/etc/freeDiameter
+
+
+
+
+
+
+
+
+
+
+
+

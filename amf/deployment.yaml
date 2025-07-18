@@ -48,6 +48,9 @@ spec:
           args:
             - |
               cp /mnt/amf/amf.yaml /open5gs/install/etc/open5gs/amf.yaml && \
+              sed -i "s|MCC|${MCC}|g" /open5gs/install/etc/open5gs/amf.yaml && \
+              sed -i "s|MNC|${MNC}|g" /open5gs/install/etc/open5gs/amf.yaml && \
+              sed -i "s|TAC|${TAC}|g" /open5gs/install/etc/open5gs/amf.yaml && \
               sed -i "s|MAX_NUM_UE|${MAX_NUM_UE}|g" /open5gs/install/etc/open5gs/amf.yaml && \
               /open5gs/install/bin/open5gs-amfd
           env:

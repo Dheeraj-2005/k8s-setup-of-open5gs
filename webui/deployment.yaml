@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: webui
+  namespace: open5gs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: webui
+  template:
+    metadata:
+      labels:
+        app: webui
+    spec:
+      initContainers:
+        - name: wait-for-mongo
+          image: busybox
+          command: ['sh', '-c', 'until nc -z mongo 27017; do echo waiting for mongo; sleep 2; done;']
+      containers:
+        - name: webui
+          image: open5gs-decrypted:latest
+          imagePullPolicy: Never
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              export DB_URI="mongodb://mongo/open5gs"
+              cd /open5gs/webui && npm install && npm run dev
+          ports:
+            - containerPort: 9999
+          volumeMounts:
+            - name: tz-config
+              mountPath: /etc/timezone
+              readOnly: true
+            - name: localtime-config
+              mountPath: /etc/localtime
+              readOnly: true
+      volumes:
+        - name: tz-config
+          hostPath:
+            path: /etc/timezone
+        - name: localtime-config
+          hostPath:
+            path: /etc/localtime
