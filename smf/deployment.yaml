@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open5gs-smf
+  namespace: open5gs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: open5gs-smf
+  template:
+    metadata:
+      labels:
+        app: open5gs-smf
+      # annotations:
+      #   k8s.v1.cni.cncf.io/networks: open5gs-nrf-net
+    spec:
+      initContainers:
+  
+        - name: wait-for-nrf
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-nrf 7777; do echo waiting for nrf; sleep 2; done;']
+        - name: wait-for-scp
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-scp 7777; do echo waiting for scp; sleep 2; done;']
+        - name: wait-for-amf
+          image: busybox
+          command: ['sh', '-c', 'until nc -z open5gs-amf 7777; do echo waiting for amf; sleep 2; done;']
+      containers:
+        - name: smf
+          image: open5gs-decrypted:latest
+          imagePullPolicy: Never
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              source /mnt/smf/smf_init.sh && \
+              /open5gs/install/bin/open5gs-smfd
+          envFrom:
+            - configMapRef:
+                name: smf-config
+          volumeMounts:
+            - name: smf-config-vol
+              mountPath: /mnt/smf
+            - name: timezone
+              mountPath: /etc/timezone
+              readOnly: true
+            - name: localtime
+              mountPath: /etc/localtime
+              readOnly: true
+            - name: smf-log
+              mountPath: /open5gs/install/var/log/open5gs
+
+      volumes:
+        - name: smf-config-vol
+          configMap:
+            name: smf-config
+        - name: smf-log
+          emptyDir: {}
+        - name: timezone
+          hostPath:
+            path: /etc/timezone
+        - name: localtime
+          hostPath:
+            path: /etc/localtime
+        
